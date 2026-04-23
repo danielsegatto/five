@@ -1,18 +1,56 @@
 # Five.
 
-A quiet logbook for five-minute work blocks. Syncs across devices via Supabase.
+A logbook for five-minute work blocks.
 
-## One-time setup (about 10 minutes)
+## What this is
 
-### 1. Create a Supabase project
+Five is small. It does one thing: it records that you worked for five minutes, and then another five minutes, and it keeps a count. You can label each block with a tag ("reading", "tidying", "email") or leave it unlabeled. Over time the ledger accumulates, and you can see — as proportion and as total — where the minutes went.
 
-- Go to [supabase.com](https://supabase.com) and sign up (free).
-- Click **New project**. Name it anything (e.g. `five`), pick a region close to you, set a database password (you won't need it again), create.
-- Wait ~1 minute for it to provision.
+That is the entire feature set. The deliberate omissions matter as much as the inclusions. There are no streaks. No levels. No badges or points. No daily target and no weekly goal. No push notifications nagging you back. No social layer, no leaderboards, no AI coach offering suggestions. The app does not congratulate you for consistency, and it does not shame you for gaps.
 
-### 2. Create the table
+## Why
 
-In the project dashboard, open **SQL Editor** (left sidebar) → **New query** → paste the following → click **Run**:
+The five-minute rule is a psychological trick that works because it lies to the mind just enough to get past the mind's defenses. Most failures to begin a task are really failures to finalize the commitment — the task feels large, the mind bargains, and the bargain is usually "later." Five minutes is too small to bargain with. There is nothing to procrastinate against. Once motion starts, continuing is usually easier than stopping, so you extend. One five becomes another five, and another. When you look back at the end, you have done far more than the initial commitment would have predicted.
+
+This pattern has names in the behavioral-psychology literature — BJ Fogg's Tiny Habits, Mel Robbins' 5-Minute Rule, the idea of implementation intentions — but knowing the name is not what makes it work. What makes it work is doing it.
+
+The one thing that might make it stop working is the quiet voice that whispers *but what have you actually done, really, over all these weeks?* That voice is corrosive, and unanswered, it eats through the practice. The logbook exists to answer it with evidence. Each entry is a small bit of proof. The total hours logged, displayed plainly as a number, is proof at a different scale. The seven-day chart is proof at another scale still. Nothing else. No elaboration. The ledger is quiet, and its quietness is the point.
+
+## Design choices
+
+The primary design principle is that friction is the enemy. Logging a block is a single tap. The log button is the first thing visible on the screen. Tags can be added after the fact, never before — the app never interrupts you with a dialog box asking what you just did. Confirmation is haptic, not modal. If the five minutes passed without you noticing, you can still press the button and it counts.
+
+The aesthetic is a ledger, not a tracker. Serif numbers. Cream paper. Hairline rules. Sequential entry IDs (#0001, #0002) because watching that counter climb is satisfying in a way that colorful progress bars are not. No emoji, no mascots, no motivational copy beyond a single line at the bottom.
+
+Tags are retrofittable. You can log first and label later. Tapping any past entry lets you tag it, and tags normalize to lowercase so "Reading" and "reading" group automatically without the user thinking about it. The most-used tags surface as chips at the top, so adding another five to an existing activity is also one tap.
+
+The app is offline-first. The UI responds to your taps from local cache and syncs in the background. You never wait on the network to log something.
+
+## Architecture
+
+The entire app is a single `index.html` file. There is no build step. Opening the file in a browser — or serving it from GitHub Pages — is the whole deployment story. This is deliberate. A build pipeline is a maintenance burden, and a personal tool should outlive the enthusiasm of its author.
+
+React 18, Tailwind CSS, and the Supabase client all load from CDNs. Babel Standalone transpiles the JSX at page load. This trades a slightly slower cold start (a few hundred milliseconds of Babel work) for zero tooling. For a single-user app that lives behind an "Add to Home Screen" icon, this trade is correct.
+
+State lives in three places. The React component holds working state. `localStorage` holds a cache of the current ledger plus a queue of pending writes. Supabase Postgres is the source of truth. Each write is optimistic: the entry appears on screen instantly, enters the queue, and the queue flushes to Supabase in the background. If the network is down the queue holds; when the browser fires the `online` event again, flush runs automatically. Other signed-in devices receive new entries through Supabase Realtime — Postgres logical replication exposed as a WebSocket — typically within one or two seconds.
+
+Authentication is email magic-link, because passwords are worse than their reputation and this app does not need them. Row-Level Security enforces that each user's `auth.uid()` can only read and write rows where `user_id` matches. The anon key baked into the HTML is public by design; Supabase's security model assumes it will be, because the enforcement happens in the database, not in the client.
+
+The schema is one table. Each entry has a timestamp-based ID (collision-resistant enough for a single human typing as fast as possible), a `user_id` foreign key, a lowercase `note`, and a `created_at` for audit. No joins. No updates except for note edits. No referential complexity.
+
+## Nuances and honest limits
+
+iOS does not let a web app run a timer while the screen is off. This is not a bug that can be fixed; it is a platform decision. The workaround is to delegate timing to iOS itself — *Hey Siri, set an alarm for 5 minutes* — because iOS alarms ring until dismissed, which matches the "subtle but persistent" behavior the user wants. The in-app timer, kept for sessions where the screen stays on, acquires a Wake Lock so the display does not dim mid-block.
+
+Safari auto-zooms when an input's font size is below 16 pixels. This is an accessibility behavior that cannot be disabled, only avoided. All inputs in the app are therefore exactly 16px. `touch-action: manipulation` on interactive elements removes the 300ms tap delay and the double-tap-to-zoom gesture, so taps register immediately on phones.
+
+Sync conflicts are handled by doing almost nothing. Each entry has a unique ID generated from `Date.now()` on the creating device. Two devices cannot generate the same ID within the same millisecond in practice, and if they did, one insert would simply fail while the other succeeded — no data loss, at worst a single missed entry. Deletes are idempotent. Edits are last-write-wins on the `note` column alone. This is the least clever sync strategy possible, and it is correct for an app with a single user on multiple devices.
+
+Data portability is first-class. Entries live in an ordinary Postgres table; export them as CSV from the Supabase Table Editor, or run `pg_dump` on the whole database. Migrating to another backend later is a matter of rewriting one file.
+
+## Setup
+
+Create a free project at supabase.com. In the SQL Editor run the schema below. In Database → Replication, toggle the `entries` table on so other devices get live updates. In Authentication → URL Configuration, set the Site URL to wherever the app is hosted (a GitHub Pages URL works), and under Authentication → Providers → Email turn off "Confirm email" so sign-in becomes a single magic-link step. Copy the Project URL and the anon public key from Settings → API into the two placeholders near the top of `index.html`. Deploy. Sign in.
 
 ```sql
 create table entries (
@@ -25,62 +63,14 @@ create table entries (
 
 alter table entries enable row level security;
 
-create policy "own entries readable"
-  on entries for select using (auth.uid() = user_id);
-create policy "own entries insertable"
-  on entries for insert with check (auth.uid() = user_id);
-create policy "own entries updatable"
-  on entries for update using (auth.uid() = user_id);
-create policy "own entries deletable"
-  on entries for delete using (auth.uid() = user_id);
+create policy "own entries readable"   on entries for select using (auth.uid() = user_id);
+create policy "own entries insertable" on entries for insert with check (auth.uid() = user_id);
+create policy "own entries updatable"  on entries for update using (auth.uid() = user_id);
+create policy "own entries deletable"  on entries for delete using (auth.uid() = user_id);
 ```
 
-### 3. Enable realtime on the table
+On each device you want to use, open the URL in Safari, then Share → Add to Home Screen. The app launches fullscreen and behaves like a native one.
 
-**Database** → **Replication** → find the `entries` table in the list → toggle it **on**. (This is what makes entries appear on your other devices within seconds.)
+## A closing note
 
-### 4. Copy your keys into `index.html`
-
-**Project Settings → API**. Copy:
-- **Project URL** (looks like `https://xyzabc.supabase.co`)
-- **anon public** key (a long string starting with `eyJ…`)
-
-Open `index.html` in a text editor. Near the top, find:
-
-```js
-const SUPABASE_URL  = "YOUR_SUPABASE_URL";
-const SUPABASE_ANON = "YOUR_SUPABASE_ANON";
-```
-
-Replace with your values.
-
-> The anon key is **safe to publish**. Supabase is designed for these keys to be public — the Row-Level Security policies you just created enforce that each user sees only their own rows.
-
-### 5. Deploy
-
-Commit `index.html` to your GitHub repo. Enable Pages: **Settings → Pages → Source: Deploy from a branch → main / root**. Your app is live at `https://<your-username>.github.io/<repo>/`.
-
-### 6. Sign in on each device
-
-- Open the URL on your phone. Enter your email. Tap the link Supabase sends you.
-- Repeat on your laptop.
-- Both devices stay signed in for a long time (Supabase refreshes the session automatically).
-
-## How syncing works
-
-- Every log is written **optimistically** to the screen first, then sent to Supabase in the background.
-- If you're offline, the entry queues up locally and flushes when you reconnect.
-- Other devices receive updates in real time via a subscription, usually within 1–2 seconds.
-- A small dot in the header shows sync state: green = synced, amber = syncing, grey = offline, red = error.
-
-## Data portability
-
-Your entries live in a real SQL table you control. To export, go to Supabase's Table Editor → `entries` → export CSV. To move to a different stack later, `pg_dump` works — it's Postgres.
-
-## Privacy note
-
-Data is stored on Supabase's infrastructure (hosted on AWS). If you'd rather self-host, Supabase is open-source and can be run on your own server; the `index.html` works against any Supabase-compatible endpoint.
-
-## iPhone home screen
-
-Open in Safari → Share → Add to Home Screen. Launches fullscreen, looks like a native app.
+This is a tool made in the spirit of doing one small thing, then another. It is not a productivity system. It is evidence you can show yourself that effort happened — a record that turns ephemeral minutes into something countable, so the quiet voice has less room to lie.
