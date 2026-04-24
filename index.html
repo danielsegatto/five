@@ -20,12 +20,49 @@
 
   <style>
     html, body { background: #fafaf9; -webkit-font-smoothing: antialiased; }
+    html.dark, html.dark body { background: #1c1917; }
     body { margin: 0; }
     #root { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+
+    /* Soft dark theme — warm stone palette, inverted */
+    html.dark .bg-stone-50  { background-color: #1c1917; }
+    html.dark .bg-white     { background-color: #292524; }
+    html.dark .bg-stone-100 { background-color: #3c3837; }
+    html.dark .bg-stone-200 { background-color: #44403c; }
+    html.dark .bg-stone-900 { background-color: #fafaf9; }
+    html.dark .bg-amber-50  { background-color: #2d1f0f; }
+
+    html.dark .text-stone-900 { color: #fafaf9; }
+    html.dark .text-stone-800 { color: #e7e5e4; }
+    html.dark .text-stone-700 { color: #d6d3d1; }
+    html.dark .text-stone-600 { color: #a8a29e; }
+    html.dark .text-stone-500 { color: #a8a29e; }
+    html.dark .text-stone-400 { color: #78716c; }
+    html.dark .text-stone-300 { color: #78716c; }
+    html.dark .text-stone-50  { color: #1c1917; }
+    html.dark .text-amber-700 { color: #d97706; }
+    html.dark .text-amber-900 { color: #fbbf24; }
+    html.dark .text-red-700   { color: #f87171; }
+
+    html.dark .border-stone-200 { border-color: #3c3837; }
+    html.dark .border-stone-300 { border-color: #44403c; }
+    html.dark .border-stone-900 { border-color: #fafaf9; }
+    html.dark .border-amber-200 { border-color: #78350f; }
+
+    html.dark .hover\:bg-stone-100:hover    { background-color: #292524; }
+    html.dark .hover\:bg-stone-200:hover    { background-color: #3c3837; }
+    html.dark .hover\:bg-stone-800:hover    { background-color: #e7e5e4; }
+    html.dark .hover\:bg-amber-50:hover     { background-color: #2d1f0f; }
+    html.dark .hover\:border-amber-700:hover { border-color: #d97706; }
+    html.dark .hover\:text-stone-700:hover  { color: #d6d3d1; }
+    html.dark .hover\:text-stone-900:hover  { color: #fafaf9; }
+    html.dark .focus\:border-amber-700:focus { border-color: #d97706; }
   </style>
 </head>
 <body>
   <div id="root"></div>
+
+  <script>if (localStorage.getItem('five_theme') === 'dark') document.documentElement.classList.add('dark');</script>
 
   <script type="text/babel" data-presets="react">
     // ============================================================
@@ -229,7 +266,7 @@
     // ============================================================
     // MAIN APP
     // ============================================================
-    function FiveMinuteLog({ session, onSignOut }) {
+    function FiveMinuteLog({ session, onSignOut, darkMode, toggleTheme }) {
       const [view, setView] = useState("log");
       const [entries, setEntries] = useState(() => loadCache());
       const [loading, setLoading] = useState(true);
@@ -560,7 +597,12 @@
                 <span className={`inline-block w-1.5 h-1.5 rounded-full ${syncBadge.dot}`}></span>
                 <span>{syncBadge.text}</span>
               </div>
-              <button onClick={onSignOut} className="text-stone-400 hover:text-stone-700 tracking-wide">sign out</button>
+              <div className="flex items-center gap-3">
+                <button onClick={toggleTheme} className="text-stone-400 hover:text-stone-700 tracking-wide">
+                  {darkMode ? "light" : "dark"}
+                </button>
+                <button onClick={onSignOut} className="text-stone-400 hover:text-stone-700 tracking-wide">sign out</button>
+              </div>
             </div>
 
             {/* PRIMARY LOG BUTTON */}
@@ -835,6 +877,20 @@
     function Root() {
       const [session, setSession] = useState(null);
       const [checkingAuth, setCheckingAuth] = useState(true);
+      const [darkMode, setDarkMode] = useState(() => localStorage.getItem('five_theme') === 'dark');
+
+      useEffect(() => {
+        if (darkMode) {
+          document.documentElement.classList.add('dark');
+          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#1c1917');
+        } else {
+          document.documentElement.classList.remove('dark');
+          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#fafaf9');
+        }
+        localStorage.setItem('five_theme', darkMode ? 'dark' : 'light');
+      }, [darkMode]);
+
+      const toggleTheme = () => setDarkMode(prev => !prev);
 
       useEffect(() => {
         if (!configured) { setCheckingAuth(false); return; }
@@ -850,7 +906,7 @@
         await supa.auth.signOut();
         localStorage.removeItem(CACHE_KEY);
         localStorage.removeItem(QUEUE_KEY);
-      }} />;
+      }} darkMode={darkMode} toggleTheme={toggleTheme} />;
     }
 
     ReactDOM.createRoot(document.getElementById("root")).render(<Root />);
