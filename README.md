@@ -28,7 +28,7 @@ The app is offline-first. The UI responds to your taps from local cache and sync
 
 ## Architecture
 
-The app is split into small browser-loaded modules under `src/` (libraries, reusable components, log-specific hooks/components, root bootstrap). There is still no build step. Open `index.html` in a browser — or serve the folder from GitHub Pages — and Babel Standalone transpiles each JSX module on load.
+The app is split into small browser-loaded modules under `src/` (libraries, components, root bootstrap). There is still no build step. Open `index.html` in a browser — or serve the folder from GitHub Pages — and Babel Standalone transpiles each JSX module on load.
 
 React 18, Tailwind CSS, and the Supabase client all load from CDNs. Babel Standalone transpiles the JSX at page load. This trades a slightly slower cold start (a few hundred milliseconds of Babel work) for zero tooling. For a single-user app that lives behind an "Add to Home Screen" icon, this trade is correct.
 
