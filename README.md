@@ -28,7 +28,7 @@ The app is offline-first. The UI responds to your taps from local cache and sync
 
 ## Architecture
 
-The entire app is a single `index.html` file. There is no build step. Opening the file in a browser — or serving it from GitHub Pages — is the whole deployment story. This is deliberate. A build pipeline is a maintenance burden, and a personal tool should outlive the enthusiasm of its author.
+The app is split into small browser-loaded modules under `src/` (libraries, components, root bootstrap). There is still no build step. Open `index.html` in a browser — or serve the folder from GitHub Pages — and Babel Standalone transpiles each JSX module on load.
 
 React 18, Tailwind CSS, and the Supabase client all load from CDNs. Babel Standalone transpiles the JSX at page load. This trades a slightly slower cold start (a few hundred milliseconds of Babel work) for zero tooling. For a single-user app that lives behind an "Add to Home Screen" icon, this trade is correct.
 
@@ -50,7 +50,7 @@ Data portability is first-class. Entries live in an ordinary Postgres table; exp
 
 ## Setup
 
-Create a free project at supabase.com. In the SQL Editor run the schema below. In Database → Replication, toggle the `entries` table on so other devices get live updates. In Authentication → URL Configuration, set the Site URL to wherever the app is hosted (a GitHub Pages URL works), and under Authentication → Providers → Email turn off "Confirm email" so sign-in becomes a single magic-link step. Copy the Project URL and the anon public key from Settings → API into the two placeholders near the top of `index.html`. Deploy. Sign in.
+Create a free project at supabase.com. In the SQL Editor run the schema below. In Database → Replication, toggle the `entries` table on so other devices get live updates. In Authentication → URL Configuration, set the Site URL to wherever the app is hosted (a GitHub Pages URL works), and under Authentication → Providers → Email turn off "Confirm email" so sign-in becomes a single magic-link step. Copy the Project URL and the anon public key from Settings → API into `src/lib/config.js`. Deploy. Sign in.
 
 ```sql
 create table entries (
